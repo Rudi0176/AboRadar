@@ -1,0 +1,6 @@
+{
+  "name": "AboRadar",
+  "description": "An app to help users keep an overview of their current subscriptions, calculate monthly and yearly costs, and receive timely reminders about cancellation deadlines.",
+  "requestFramePermissions": [],
+  "prompt": ""
+}

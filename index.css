@@ -1,0 +1,932 @@
+:root {
+  --primary-color: #00C9A7;
+  --background-color: #f9f9f9;
+  --card-background-color: #ffffff;
+  --text-color: #333333;
+  --text-secondary-color: #666666;
+  --danger-color: #E53E3E;
+  --warning-color: #FACC15;
+  --border-color: #e0e0e0;
+  --primary-button-text-color: #ffffff;
+  --secondary-button-bg-color: #e9ecef;
+  --secondary-button-text-color: #333333;
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: var(--background-color);
+  color: var(--text-color);
+  overscroll-behavior: none;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1.5rem 1rem;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.app-container {
+  width: 100%;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.header h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--text-color);
+}
+
+main {
+  width: 100%;
+  padding-bottom: 80px; /* Space for Bottom Nav Bar */
+}
+
+.summary-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.summary-card {
+  background-color: var(--card-background-color);
+  border-radius: 12px;
+  padding: 1.5rem;
+  text-align: center;
+  box-shadow: var(--shadow);
+}
+
+.summary-card h2 {
+  font-size: 1rem;
+  color: var(--text-secondary-color);
+  margin-bottom: 0.5rem;
+}
+
+.summary-card p {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--primary-color);
+}
+
+.subscriptions-header {
+  font-size: 1.25rem;
+  font-weight: 500;
+  margin-bottom: 1rem;
+  color: var(--text-color);
+}
+
+.subscription-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.welcome-container {
+    text-align: center;
+    padding: 3rem 2rem;
+    background-color: var(--card-background-color);
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+    margin-top: 2rem;
+    box-shadow: var(--shadow);
+}
+
+.welcome-container h2 {
+    font-size: 1.75rem;
+    color: var(--text-color);
+}
+
+.welcome-container p {
+    color: var(--text-secondary-color);
+    max-width: 350px;
+    line-height: 1.5;
+}
+
+.welcome-back {
+    text-align: center;
+    padding: 1rem 0;
+}
+.welcome-back h2 {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+.welcome-back p {
+    color: var(--text-secondary-color);
+    line-height: 1.5;
+}
+
+.subscription-card {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--card-background-color);
+  padding: 1.25rem 1.5rem;
+  border-radius: 12px;
+  border-left: 4px solid var(--primary-color);
+  transition: border-left-color 0.3s ease;
+  box-shadow: var(--shadow);
+  gap: 0.5rem;
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.card-header h3 {
+  font-size: 1.1rem;
+  font-weight: 500;
+  flex-grow: 1;
+}
+
+.card-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.card-action-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-secondary-color);
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.card-action-btn .material-icons {
+    font-size: 20px;
+    transition: color 0.2s ease;
+}
+
+.card-action-btn:hover .material-icons {
+    color: var(--text-color);
+}
+.card-action-btn:hover .material-icons[title*="Lösche"] {
+    color: var(--danger-color);
+}
+
+
+.subscription-card.expensive {
+  border-left-color: var(--warning-color);
+}
+
+.subscription-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  flex-grow: 1;
+}
+
+.subscription-info .provider-info {
+    font-size: 0.9rem;
+    color: var(--text-secondary-color);
+    margin-top: -0.5rem;
+}
+
+.subscription-info .price-info {
+  font-size: 0.9rem;
+  color: var(--text-secondary-color);
+}
+
+.savings-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--warning-color);
+    font-size: 0.85rem;
+    font-weight: 500;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    background-color: rgba(250, 204, 21, 0.1);
+    border: 1px solid rgba(250, 204, 21, 0.2);
+    width: fit-content;
+}
+
+.savings-badge .material-icons {
+  font-size: 1.1rem;
+  color: var(--warning-color);
+}
+
+.deadline-warning {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--danger-color);
+    font-size: 0.85rem;
+    font-weight: 500;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    background-color: rgba(229, 62, 62, 0.1);
+    border: 1px solid rgba(229, 62, 62, 0.2);
+    width: fit-content;
+}
+
+.deadline-warning .material-icons {
+    font-size: 1.1rem;
+    color: var(--danger-color);
+}
+
+
+.subscription-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary-color);
+  margin-top: 0.5rem;
+}
+
+.detail-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.detail-item .material-icons {
+  font-size: 1.1rem;
+  color: var(--text-secondary-color);
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.modal-content {
+  background-color: var(--card-background-color);
+  padding: 2rem;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-content h2 {
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.modal-text {
+  color: var(--text-secondary-color);
+  line-height: 1.6;
+  margin-bottom: 1rem;
+}
+.modal-text:last-of-type {
+  margin-bottom: 0;
+}
+.modal-text strong {
+  color: var(--text-color);
+}
+
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group:last-child {
+    margin-bottom: 0;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--text-secondary-color);
+  font-size: 0.9rem;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+  width: 100%;
+  padding: 0.75rem;
+  background-color: var(--background-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-color);
+  font-size: 1rem;
+  font-family: 'Inter', sans-serif;
+}
+
+.form-group textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+
+.form-group-inline {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.form-group-inline input {
+    flex: 1;
+}
+.form-group-inline select {
+    flex: 2;
+}
+
+
+.modal-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.modal-btn {
+  flex-grow: 1;
+  padding: 0.75rem;
+  border-radius: 8px;
+  border: none;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.modal-btn:hover {
+    opacity: 0.9;
+}
+
+.btn-primary {
+  background-color: var(--primary-color);
+  color: var(--primary-button-text-color);
+}
+
+.btn-secondary {
+  background-color: var(--secondary-button-bg-color);
+  color: var(--secondary-button-text-color);
+}
+
+/* Bottom Navigation Bar */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 70px;
+  background-color: var(--card-background-color);
+  display: flex;
+  justify-content: space-around;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.07);
+  border-top: 1px solid var(--border-color);
+  z-index: 1000;
+}
+
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-grow: 1;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary-color);
+  transition: color 0.2s ease-in-out;
+  padding: 0.5rem 0;
+  font-family: 'Inter', sans-serif;
+}
+
+.nav-item .material-icons {
+  font-size: 24px;
+  margin-bottom: 4px;
+}
+
+.nav-label {
+  font-size: 12px;
+}
+
+.nav-item:hover {
+  color: var(--text-color);
+}
+
+.nav-item.active {
+  color: var(--primary-color);
+}
+
+/* Page specific styles */
+.page-description,
+.empty-list-info {
+    text-align: center;
+    color: var(--text-secondary-color);
+    padding: 1rem 0;
+    line-height: 1.5;
+}
+
+/* Empty State Styles */
+.empty-state-container {
+    text-align: center;
+    padding: 3rem 2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 2rem;
+    color: var(--text-secondary-color);
+}
+
+.empty-state-icon {
+    font-size: 4rem; /* large icon */
+    color: var(--border-color);
+}
+
+.empty-state-container h3 {
+    font-size: 1.25rem;
+    color: var(--text-color);
+    margin-top: 1rem;
+}
+
+.empty-state-container p {
+    max-width: 300px;
+    line-height: 1.5;
+}
+
+
+/* Subscriptions Page Header */
+.subscriptions-page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.subscriptions-page-header .subscriptions-header {
+    margin-bottom: 0;
+}
+
+.btn-add-subscription {
+    background-color: var(--primary-color);
+    color: var(--primary-button-text-color);
+    border: none;
+    padding: 0.6rem 1.2rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    white-space: nowrap;
+}
+
+.btn-add-subscription:hover {
+     background-color: #00b894;
+}
+
+/* Tab Styles */
+.tabs-container {
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 1.5rem;
+}
+
+.tab-button {
+    flex: 1;
+    padding: 1rem;
+    font-size: 1rem;
+    font-weight: 500;
+    text-align: center;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-secondary-color);
+    border-bottom: 3px solid transparent;
+    transition: color 0.2s, border-color 0.2s;
+    margin-bottom: -1px;
+}
+
+.tab-button:hover {
+    color: var(--text-color);
+}
+
+.tab-button.active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+}
+
+.tab-content .subscriptions-header {
+    margin-top: 0;
+}
+
+/* Settings Page Styles */
+.settings-section {
+    background-color: var(--card-background-color);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    box-shadow: var(--shadow);
+}
+
+.settings-section h3 {
+    font-size: 1.1rem;
+    font-weight: 500;
+    margin-bottom: 1.5rem;
+}
+
+.data-management-actions,
+.settings-section a.settings-button {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    text-decoration: none;
+}
+
+.settings-button {
+    position: relative;
+    width: 100%;
+    padding: 0.75rem;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background-color: var(--card-background-color);
+    color: var(--text-color);
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: center;
+    transition: background-color 0.2s;
+}
+.settings-button:hover:not(:disabled) {
+    background-color: var(--background-color);
+}
+.settings-button:disabled {
+    background-color: var(--background-color);
+    color: var(--text-secondary-color);
+    cursor: not-allowed;
+}
+
+.coming-soon-badge {
+    position: absolute;
+    top: 50%;
+    right: 1rem;
+    transform: translateY(-50%);
+    font-size: 0.7rem;
+    font-weight: 500;
+    padding: 0.2rem 0.5rem;
+    background-color: var(--secondary-button-bg-color);
+    color: var(--text-secondary-color);
+    border-radius: 4px;
+}
+
+.btn-danger {
+    background-color: var(--danger-color);
+    color: var(--primary-button-text-color);
+    border-color: var(--danger-color);
+}
+
+.btn-danger:hover {
+    background-color: #c53030;
+}
+
+.settings-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+.settings-row:first-of-type {
+    padding-top: 0;
+}
+.settings-row:last-of-type {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+.settings-row.disabled {
+    opacity: 0.5;
+}
+.settings-row.disabled .settings-label {
+    color: var(--text-secondary-color);
+}
+
+
+.settings-label {
+    font-size: 1rem;
+    color: var(--text-color);
+}
+.settings-row select {
+    padding: 0.5rem;
+    background-color: var(--background-color);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-color);
+    font-size: 0.9rem;
+}
+
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 28px;
+}
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: .4s;
+  border-radius: 28px;
+}
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 20px;
+  width: 20px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  transition: .4s;
+  border-radius: 50%;
+}
+input:checked + .slider {
+  background-color: var(--primary-color);
+}
+input:checked + .slider:before {
+  transform: translateX(22px);
+}
+
+
+.privacy-info-box {
+    color: var(--text-secondary-color);
+    line-height: 1.5;
+    font-size: 0.9rem;
+    margin-bottom: 1.5rem;
+}
+.privacy-info-box strong {
+    color: var(--text-color);
+}
+
+/* Cancellation Generator Page */
+.cancellation-generator-page {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.btn-generate {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 0.85rem;
+    border-radius: 8px;
+    border: none;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    background-color: var(--primary-color);
+    color: var(--primary-button-text-color);
+    transition: background-color 0.2s, opacity 0.2s;
+}
+
+.btn-generate:hover:not(:disabled) {
+    background-color: #00b894;
+}
+
+.btn-generate:disabled {
+    opacity: 0.7;
+    cursor: wait;
+}
+
+.spinner {
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.error-message {
+    color: var(--danger-color);
+    background-color: rgba(229, 62, 62, 0.1);
+    padding: 0.75rem;
+    border-radius: 8px;
+    text-align: center;
+    font-size: 0.9rem;
+}
+
+/* Snackbar / Toast */
+.snackbar {
+  visibility: hidden;
+  min-width: 250px;
+  background-color: #333;
+  color: #fff;
+  text-align: center;
+  border-radius: 8px;
+  padding: 1rem;
+  position: fixed;
+  z-index: 2000;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  bottom: 80px; /* Above nav bar */
+  font-size: 0.9rem;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  opacity: 0;
+  transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+  max-width: 90%;
+}
+
+.snackbar.show {
+  visibility: visible;
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.snackbar.success {
+  background-color: var(--primary-color);
+  color: var(--primary-button-text-color);
+}
+
+.snackbar.error {
+  background-color: var(--danger-color);
+  color: var(--primary-button-text-color);
+}
+
+/* Editor View */
+.letter-preview {
+    background-color: var(--card-background-color);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1rem 1.5rem;
+    max-height: 350px;
+    overflow-y: auto;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.letter-preview pre {
+    white-space: pre-wrap; /* Allows text to wrap */
+    word-wrap: break-word; /* Breaks long words */
+    font-family: 'Inter', sans-serif;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: var(--text-color);
+}
+
+.placeholder-form {
+    background-color: var(--card-background-color);
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: var(--shadow);
+}
+
+.placeholder-form h3 {
+    font-size: 1.1rem;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+.placeholder-form .page-description {
+    padding: 0 0 1rem 0;
+    text-align: left;
+    font-size: 0.9rem;
+}
+
+.form-section {
+    margin-bottom: 1.5rem;
+    border-top: 1px solid var(--border-color);
+    padding-top: 1.5rem;
+}
+
+.placeholder-form > .form-section:first-of-type {
+    border-top: none;
+    padding-top: 0;
+}
+
+.form-section:last-of-type {
+    margin-bottom: 0;
+}
+
+.form-section h4 {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--primary-color);
+    margin-bottom: 1.25rem;
+}
+
+.btn-add-optional {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: none;
+    border: 1px dashed var(--border-color);
+    color: var(--text-secondary-color);
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.9rem;
+    width: 100%;
+    justify-content: center;
+    margin-top: -0.5rem;
+}
+
+.btn-add-optional:hover {
+    color: var(--text-color);
+    border-color: var(--text-secondary-color);
+}
+
+.input-with-action {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.input-with-action input {
+    flex-grow: 1;
+}
+
+.btn-remove-optional {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--secondary-button-bg-color);
+    color: var(--text-secondary-color);
+    border: none;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.btn-remove-optional:hover {
+    background-color: #e2e6ea;
+    color: var(--text-color);
+}
+
+.btn-remove-optional .material-icons {
+    font-size: 20px;
+}
+
+
+.editor-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.editor-actions .modal-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.editor-actions .material-icons {
+    font-size: 1.2rem;
+}
+
+.editor-actions .btn-secondary {
+    background-color: transparent;
+    color: var(--text-secondary-color);
+}
+
+.editor-actions .btn-secondary:hover {
+    background-color: var(--secondary-button-bg-color);
+}
