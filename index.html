@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AboRadar</title>
-    <link rel="stylesheet" href="index.css" />
+    <link rel="stylesheet" href="style.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
@@ -12,19 +12,117 @@
   <script type="importmap">
 {
   "imports": {
-    "react": "https://esm.sh/react@^19.1.0",
-    "react/": "https://esm.sh/react@^19.1.0/",
-    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
     "@google/genai": "https://esm.sh/@google/genai",
-    "jspdf": "https://esm.sh/jspdf@^2.5.1"
+    "jspdf": "https://esm.sh/jspdf@^2.5.1",
+    "chart.js": "https://esm.sh/chart.js@^4.4.2"
   }
 }
 </script>
 <link rel="stylesheet" href="/index.css">
 </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="index.tsx"></script>
+    <div class="app-container">
+        <header class="header">
+            <h1>AboRadar</h1>
+        </header>
+
+        <main id="main-content">
+            <!-- Dynamic content is rendered here -->
+        </main>
+
+        <div id="snackbar" class=""></div>
+
+        <nav class="bottom-nav">
+            <button data-view="start" class="nav-item active" aria-label="Start" aria-current="true">
+                <span class="material-icons">home</span>
+                <span class="nav-label">Start</span>
+            </button>
+            <button data-view="abos" class="nav-item" aria-label="Abos">
+                <span class="material-icons">article</span>
+                <span class="nav-label">Abos</span>
+            </button>
+            <button data-view="auswertung" class="nav-item" aria-label="Auswertung">
+                <span class="material-icons">bar_chart</span>
+                <span class="nav-label">Auswertung</span>
+            </button>
+            <button data-view="kuendigungen" class="nav-item" aria-label="Kündigungen">
+                <span class="material-icons">notifications</span>
+                <span class="nav-label">Kündigungen</span>
+            </button>
+            <button data-view="einstellungen" class="nav-item" aria-label="Einstellungen">
+                <span class="material-icons">settings</span>
+                <span class="nav-label">Einstellungen</span>
+            </button>
+        </nav>
+    </div>
+
+    <!-- Modals (hidden by default) -->
+    <div id="add-subscription-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <h2 id="modal-title">Neues Abo hinzufügen</h2>
+            <form id="subscription-form">
+                <input type="hidden" name="id">
+                <div class="form-group autocomplete-wrapper">
+                    <label for="name">Abo-Name</label>
+                    <input type="text" id="name" name="name" placeholder="z.B. Netflix oder Fitnessstudio" required autocomplete="off">
+                    <ul class="suggestion-list" style="display: none;"></ul>
+                </div>
+                <div class="form-group">
+                    <label for="price">Preis (€)</label>
+                    <input type="number" id="price" name="price" placeholder="15.99" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label for="category">Kategorie</label>
+                    <select id="category" name="category"></select>
+                </div>
+                <div class="form-group">
+                    <label for="interval">Zahlungsintervall</label>
+                    <select id="interval" name="interval">
+                        <option value="weekly">Wöchentlich</option>
+                        <option value="monthly">Monatlich</option>
+                        <option value="yearly">Jährlich</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="startDate">Erste Zahlung am</label>
+                    <input type="date" id="startDate" name="startDate">
+                </div>
+                <div class="form-group">
+                    <label for="contractTermInMonths">Vertragslaufzeit (in Monaten)</label>
+                    <input type="number" id="contractTermInMonths" name="contractTermInMonths" placeholder="z.B. 12 (0 für flexibel)">
+                </div>
+                <div class="form-group">
+                    <label>Kündigungsfrist</label>
+                    <div class="form-group-inline">
+                        <input type="number" name="cancellationNoticePeriod" placeholder="z.B. 3">
+                        <select name="cancellationNoticeUnit">
+                            <option value="days">Tage</option>
+                            <option value="weeks">Wochen</option>
+                            <option value="months">Monate</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="modal-btn btn-secondary" id="modal-cancel-btn">Abbrechen</button>
+                    <button type="submit" class="modal-btn btn-primary">Speichern</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div id="info-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <h2>Datenschutz bei AboRadar</h2>
+            <p class="modal-text"><strong>Deine Daten gehören dir.</strong></p>
+            <p class="modal-text">AboRadar wurde mit dem Grundsatz des Datenschutzes entwickelt. Alle Daten, die du eingibst – seien es deine Abonnements, Kosten oder Kündigungsfristen – werden ausschließlich auf deinem eigenen Gerät gespeichert. Sie verlassen niemals deinen Browser und werden nicht an uns oder Dritte gesendet.</p>
+            <p class="modal-text">Auch die Funktion zur Erstellung von Kündigungsschreiben ist datenschutzfreundlich. Wir senden nur allgemeine, anonyme Informationen an die KI (z.B. "Erstelle ein Kündigungsschreiben für ein Fitnessstudio"). Deine persönlichen Daten wie Name oder Adresse werden erst auf deinem Gerät in die Vorlage eingefügt.</p>
+            <div class="modal-actions">
+                <button type="button" class="modal-btn btn-primary" id="info-modal-close-btn">Verstanden</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="script.js"></script>
   <script type="module" src="/index.tsx"></script>
 </body>
 </html>
