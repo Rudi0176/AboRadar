@@ -1,5 +1,4 @@
-
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useLayoutEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { GoogleGenAI } from "@google/genai";
 import jsPDF from 'jspdf';
@@ -24,6 +23,8 @@ interface Subscription {
   contractTermInMonths?: number;
   cancellationNoticePeriod?: number;
   cancellationNoticeUnit?: 'days' | 'weeks' | 'months';
+  isActive?: boolean;
+  cancellationConfirmed?: boolean;
 }
 
 const COMMON_SUBSCRIPTIONS = [
@@ -75,16 +76,27 @@ const getMonthlyCost = (sub: Subscription): number => {
     }
 };
 
-const calculateCancellationDeadline = (sub: Subscription): Date | null => {
-    const { startDate, contractTermInMonths, cancellationNoticePeriod, cancellationNoticeUnit } = sub;
-
-    if (!contractTermInMonths || contractTermInMonths <= 0 || !cancellationNoticePeriod || !cancellationNoticeUnit) {
+const calculateEndDate = (sub: Subscription): Date | null => {
+    const { startDate, contractTermInMonths } = sub;
+    if (!contractTermInMonths || contractTermInMonths <= 0) {
         return null;
     }
-
     const start = new Date(startDate);
+    // Important: Create a new Date object from start.getTime() to avoid mutating the original 'start' date object
+    // when setMonth is called in the next line.
     const endDate = new Date(start.getTime());
     endDate.setMonth(start.getMonth() + contractTermInMonths);
+    return endDate;
+};
+
+
+const calculateCancellationDeadline = (sub: Subscription): Date | null => {
+    const { cancellationNoticePeriod, cancellationNoticeUnit } = sub;
+    const endDate = calculateEndDate(sub);
+
+    if (!endDate || !cancellationNoticePeriod || !cancellationNoticeUnit) {
+        return null;
+    }
 
     const deadline = new Date(endDate.getTime());
     switch (cancellationNoticeUnit) {
@@ -104,7 +116,13 @@ const calculateCancellationDeadline = (sub: Subscription): Date | null => {
 
 // --- REACT COMPONENTS ---
 
-const Snackbar = ({ message, type, visible }: { message: string, type: string, visible: boolean }) => {
+interface SnackbarProps {
+    message: string;
+    type: SnackbarType;
+    visible: boolean;
+}
+
+const Snackbar: React.FC<SnackbarProps> = ({ message, type, visible }) => {
     if (!visible) return null;
 
     return (
@@ -114,22 +132,36 @@ const Snackbar = ({ message, type, visible }: { message: string, type: string, v
     );
 };
 
-const SummaryCard = ({ title, amount }: { title: string, amount: number }) => (
+interface SummaryCardProps {
+    title: string;
+    amount: number;
+}
+
+const SummaryCard: React.FC<SummaryCardProps> = ({ title, amount }) => (
     <div className="summary-card">
         <h2>{title}</h2>
         <p>{formatCurrency(amount)}</p>
     </div>
 );
 
-const Welcome = () => (
+const Welcome: React.FC = () => (
     <div className="welcome-container">
         <h2>Willkommen bei AboRadar!</h2>
         <p>Behalte den Überblick über deine Abos, verwalte Kosten und verpasse keine Kündigungsfrist mehr. Wechsle zur Seite "Abos", um deinen ersten Vertrag hinzuzufügen.</p>
     </div>
 );
 
+// Correct Prop Definition for SubscriptionCard: 'key' is NOT included.
+interface SubscriptionCardProps {
+  sub: Subscription;
+  onDelete: (id: string) => void;
+  onEdit: (sub: Subscription) => void;
+  isExpensive: boolean;
+  requiresConfirmation: boolean;
+  onConfirmationClick: (sub: Subscription) => void;
+}
 
-const SubscriptionCard = ({ sub, onDelete, onEdit, isExpensive }: { sub: Subscription, onDelete: (id: string) => void, onEdit: (sub: Subscription) => void, isExpensive: boolean }) => {
+const SubscriptionCard: React.FC<SubscriptionCardProps> = ({ sub, onDelete, onEdit, isExpensive, requiresConfirmation, onConfirmationClick }) => {
     const deadline = useMemo(() => calculateCancellationDeadline(sub), [sub]);
     const intervalTextMap = {
         weekly: 'Woche',
@@ -158,7 +190,7 @@ const SubscriptionCard = ({ sub, onDelete, onEdit, isExpensive }: { sub: Subscri
     };
 
     return (
-        <div className={`subscription-card ${isExpensive ? 'expensive' : ''}`} aria-label={`Abonnement: ${sub.name}`}>
+        <div className={`subscription-card ${isExpensive ? 'expensive' : ''} ${sub.isActive === false ? 'inactive' : ''}`} aria-label={`Abonnement: ${sub.name}`}>
             <div className="card-header">
                 <h3>{sub.name}</h3>
                 <div className="card-actions">
@@ -176,6 +208,13 @@ const SubscriptionCard = ({ sub, onDelete, onEdit, isExpensive }: { sub: Subscri
                     <span className="material-icons">label</span>
                     {sub.category}
                 </span>
+                
+                {requiresConfirmation && (
+                     <div className="confirmation-prompt" onClick={() => onConfirmationClick(sub)} title="Klicke, um den Status dieses Abos zu bestätigen.">
+                        <span className="material-icons">help_outline</span>
+                        <span>Aktion erforderlich: Bestätigen</span>
+                    </div>
+                )}
 
                 {isExpensive && (
                     <div className="savings-badge" title="Dieses Abo kostet mehr als 20 € pro Monat.">
@@ -222,10 +261,105 @@ const SubscriptionCard = ({ sub, onDelete, onEdit, isExpensive }: { sub: Subscri
     );
 };
 
+interface FloatingSuggestionsProps {
+    anchorEl: HTMLElement | null;
+    suggestions: string[];
+    onSelect: (value: string) => void;
+    onClose: () => void;
+    scrollContainerRef?: React.RefObject<HTMLDivElement>;
+}
 
-const AddSubscriptionModal = ({ isOpen, onClose, onSave, editingSubscription, subscriptions }: { isOpen: boolean; onClose: () => void; onSave: (sub: Subscription) => void; editingSubscription: Subscription | null; subscriptions: Subscription[] }) => {
-    if (!isOpen) return null;
+const FloatingSuggestions: React.FC<FloatingSuggestionsProps> = ({
+    anchorEl,
+    suggestions,
+    onSelect,
+    onClose,
+    scrollContainerRef,
+}) => {
+    const listRef = useRef<HTMLUListElement>(null);
+    const [style, setStyle] = useState<React.CSSProperties>({});
 
+    useLayoutEffect(() => {
+        if (!anchorEl) return;
+
+        const calculatePosition = () => {
+            if (!anchorEl || !listRef.current) return;
+
+            const anchorRect = anchorEl.getBoundingClientRect();
+            const listHeight = listRef.current.offsetHeight;
+            const spaceBelow = window.innerHeight - anchorRect.bottom;
+            const spaceAbove = anchorRect.top;
+
+            const newStyle: React.CSSProperties = {
+                position: 'fixed',
+                left: `${anchorRect.left}px`,
+                width: `${anchorRect.width}px`,
+                zIndex: 1002, // Higher than modal overlay
+            };
+            
+            if (spaceBelow >= listHeight + 20 || spaceBelow >= spaceAbove) {
+                // Open downwards
+                newStyle.top = `${anchorRect.bottom + 2}px`;
+                newStyle.maxHeight = `${Math.max(100, spaceBelow - 20)}px`;
+            } else {
+                // Open upwards
+                newStyle.bottom = `${window.innerHeight - anchorRect.top + 2}px`;
+                newStyle.maxHeight = `${Math.max(100, spaceAbove - 20)}px`;
+            }
+            
+            setStyle(newStyle);
+        };
+        
+        const timerId = setTimeout(calculatePosition, 0);
+
+        const scrollTarget = scrollContainerRef?.current || window;
+        window.addEventListener('resize', calculatePosition);
+        scrollTarget.addEventListener('scroll', calculatePosition, true);
+
+        return () => {
+            clearTimeout(timerId);
+            window.removeEventListener('resize', calculatePosition);
+            scrollTarget.removeEventListener('scroll', calculatePosition, true);
+        };
+    }, [anchorEl, suggestions.length, scrollContainerRef]);
+
+    useEffect(() => {
+        const handleClose = (event: MouseEvent) => {
+            if (event.target instanceof Node) {
+                if (listRef.current && !listRef.current.contains(event.target) && anchorEl && !anchorEl.contains(event.target)) {
+                    onClose();
+                }
+            }
+        };
+        document.addEventListener('mousedown', handleClose);
+        return () => document.removeEventListener('mousedown', handleClose);
+    }, [anchorEl, onClose]);
+
+    if (!anchorEl || suggestions.length === 0) return null;
+
+    return (
+        <ul className="suggestion-list" style={style} ref={listRef}>
+            {suggestions.map((item) => (
+                <li key={item} onMouseDown={(e) => {
+                    e.preventDefault(); 
+                    onSelect(item);
+                }}>
+                    {item}
+                </li>
+            ))}
+        </ul>
+    );
+};
+
+interface AddSubscriptionModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    onSave: (sub: Subscription) => void;
+    editingSubscription: Subscription | null;
+    subscriptions: Subscription[];
+}
+
+const AddSubscriptionModal: React.FC<AddSubscriptionModalProps> = ({ isOpen, onClose, onSave, editingSubscription, subscriptions }) => {
     const suggestionList = useMemo(() => {
         const existingNames = subscriptions.map(s => s.name);
         const combined = new Set([...COMMON_SUBSCRIPTIONS, ...existingNames]);
@@ -256,9 +390,11 @@ const AddSubscriptionModal = ({ isOpen, onClose, onSave, editingSubscription, su
     
     const [formState, setFormState] = useState(() => getInitialStateForSub(editingSubscription));
     const [suggestionsVisible, setSuggestionsVisible] = useState(false);
-    const autocompleteWrapperRef = useRef<HTMLDivElement>(null);
     const [categorySuggestionsVisible, setCategorySuggestionsVisible] = useState(false);
-    const categoryAutocompleteWrapperRef = useRef<HTMLDivElement>(null);
+    
+    const nameInputRef = useRef<HTMLInputElement>(null);
+    const categoryInputRef = useRef<HTMLInputElement>(null);
+    const formScrollContainerRef = useRef<HTMLDivElement>(null);
 
     const filteredSuggestions = useMemo(() => {
         if (!formState.name) return suggestionList;
@@ -274,25 +410,9 @@ const AddSubscriptionModal = ({ isOpen, onClose, onSave, editingSubscription, su
         );
     }, [formState.category, categorySuggestionList]);
 
-
     useEffect(() => {
         setFormState(getInitialStateForSub(editingSubscription));
     }, [editingSubscription]);
-
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (autocompleteWrapperRef.current && !autocompleteWrapperRef.current.contains(event.target as Node)) {
-                setSuggestionsVisible(false);
-            }
-            if (categoryAutocompleteWrapperRef.current && !categoryAutocompleteWrapperRef.current.contains(event.target as Node)) {
-                setCategorySuggestionsVisible(false);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-        };
-    }, []);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -344,108 +464,145 @@ const AddSubscriptionModal = ({ isOpen, onClose, onSave, editingSubscription, su
             contractTermInMonths: isNaN(contractTermInMonths) ? undefined : contractTermInMonths,
             cancellationNoticePeriod: isNaN(cancellationNoticePeriod) ? undefined : cancellationNoticePeriod,
             cancellationNoticeUnit: formState.cancellationNoticeUnit,
+            isActive: editingSubscription?.isActive ?? true,
+            cancellationConfirmed: editingSubscription?.cancellationConfirmed ?? false,
         };
 
         onSave(subscriptionData);
         onClose();
     };
     
-    return (
-        <div className="modal-overlay" onClick={onClose}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                <h2>{editingSubscription ? 'Abo bearbeiten' : 'Neues Abo hinzufügen'}</h2>
-                <form onSubmit={handleSubmit}>
-                     <div className="form-group autocomplete-wrapper" ref={autocompleteWrapperRef}>
-                        <label htmlFor="name">Abo-Name</label>
-                        <input
-                            type="text"
-                            id="name"
-                            name="name"
-                            value={formState.name}
-                            onChange={handleNameChange}
-                            onFocus={() => setSuggestionsVisible(true)}
-                            placeholder="z.B. Netflix oder Fitnessstudio"
-                            required
-                            autoComplete="off"
-                        />
-                        {suggestionsVisible && filteredSuggestions.length > 0 && (
-                            <ul className="suggestion-list">
-                                {filteredSuggestions.map((subName) => (
-                                    <li key={subName} onClick={() => handleSuggestionClick(subName)}>
-                                        {subName}
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                    </div>
+    if (!isOpen) return null;
 
-                    <div className="form-group">
-                        <label htmlFor="price">Preis (€)</label>
-                        <input
-                            type="number"
-                            id="price"
-                            name="price"
-                            value={formState.price}
-                            onChange={handleChange}
-                            placeholder="15.99"
-                            step="0.01"
-                            required
-                        />
-                    </div>
-                     <div className="form-group autocomplete-wrapper" ref={categoryAutocompleteWrapperRef}>
-                        <label htmlFor="category">Kategorie</label>
-                        <input
-                            type="text"
-                            id="category"
-                            name="category"
-                            value={formState.category}
-                            onChange={handleCategoryChange}
-                            onFocus={() => setCategorySuggestionsVisible(true)}
-                            placeholder="z.B. Streaming"
-                            autoComplete="off"
-                        />
-                        {categorySuggestionsVisible && filteredCategorySuggestions.length > 0 && (
-                            <ul className="suggestion-list">
-                                {filteredCategorySuggestions.map((catName) => (
-                                    <li key={catName} onClick={() => handleCategorySuggestionClick(catName)}>
-                                        {catName}
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                    </div>
-                    <div className="form-group">
-                        <label htmlFor="interval">Zahlungsintervall</label>
-                        <select id="interval" name="interval" value={formState.interval} onChange={handleChange}>
-                            <option value="weekly">Wöchentlich</option>
-                            <option value="monthly">Monatlich</option>
-                            <option value="yearly">Jährlich</option>
-                        </select>
-                    </div>
-                     <div className="form-group">
-                        <label htmlFor="startDate">Erste Zahlung am</label>
-                        <input type="date" id="startDate" name="startDate" value={formState.startDate} onChange={handleChange} />
-                    </div>
-                     <div className="form-group">
-                        <label htmlFor="contractTermInMonths">Vertragslaufzeit (in Monaten)</label>
-                        <input type="number" id="contractTermInMonths" name="contractTermInMonths" value={formState.contractTermInMonths} onChange={handleChange} placeholder="z.B. 12 (0 für flexibel)" />
-                    </div>
-                    <div className="form-group">
-                         <label>Kündigungsfrist</label>
-                        <div className="form-group-inline">
-                            <input type="number" name="cancellationNoticePeriod" value={formState.cancellationNoticePeriod} onChange={handleChange} placeholder="z.B. 3" />
-                            <select name="cancellationNoticeUnit" value={formState.cancellationNoticeUnit} onChange={handleChange}>
-                                <option value="days">Tage</option>
-                                <option value="weeks">Wochen</option>
-                                <option value="months">Monate</option>
-                            </select>
+    return (
+        <>
+            <div className="modal-overlay" onClick={onClose}>
+                <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                    <h2>{editingSubscription ? 'Abo bearbeiten' : 'Neues Abo hinzufügen'}</h2>
+                    <form onSubmit={handleSubmit}>
+                        <div className="form-scroll-container" ref={formScrollContainerRef}>
+                            <div className="form-group">
+                                <label htmlFor="name">Abo-Name</label>
+                                <input
+                                    ref={nameInputRef}
+                                    type="text"
+                                    id="name"
+                                    name="name"
+                                    value={formState.name}
+                                    onChange={handleNameChange}
+                                    onFocus={() => setSuggestionsVisible(true)}
+                                    placeholder="z.B. Netflix oder Fitnessstudio"
+                                    required
+                                    autoComplete="off"
+                                />
+                            </div>
+
+                            <div className="form-group">
+                                <label htmlFor="price">Preis (€)</label>
+                                <input
+                                    type="number"
+                                    id="price"
+                                    name="price"
+                                    value={formState.price}
+                                    onChange={handleChange}
+                                    placeholder="15.99"
+                                    step="0.01"
+                                    required
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label htmlFor="category">Kategorie</label>
+                                <input
+                                    ref={categoryInputRef}
+                                    type="text"
+                                    id="category"
+                                    name="category"
+                                    value={formState.category}
+                                    onChange={handleCategoryChange}
+                                    onFocus={() => setCategorySuggestionsVisible(true)}
+                                    placeholder="z.B. Streaming"
+                                    autoComplete="off"
+                                />
+                            </div>
+                            <div className="form-group">
+                                <label htmlFor="interval">Zahlungsintervall</label>
+                                <select id="interval" name="interval" value={formState.interval} onChange={handleChange}>
+                                    <option value="weekly">Wöchentlich</option>
+                                    <option value="monthly">Monatlich</option>
+                                    <option value="yearly">Jährlich</option>
+                                </select>
+                            </div>
+                            <div className="form-group">
+                                <label htmlFor="startDate">Erste Zahlung am</label>
+                                <input type="date" id="startDate" name="startDate" value={formState.startDate} onChange={handleChange} />
+                            </div>
+                            <div className="form-group">
+                                <label htmlFor="contractTermInMonths">Vertragslaufzeit (in Monaten)</label>
+                                <input type="number" id="contractTermInMonths" name="contractTermInMonths" value={formState.contractTermInMonths} onChange={handleChange} placeholder="z.B. 12 (0 für flexibel)" />
+                            </div>
+                            <div className="form-group">
+                                <label>Kündigungsfrist</label>
+                                <div className="form-group-inline">
+                                    <input type="number" name="cancellationNoticePeriod" value={formState.cancellationNoticePeriod} onChange={handleChange} placeholder="z.B. 3" />
+                                    <select name="cancellationNoticeUnit" value={formState.cancellationNoticeUnit} onChange={handleChange}>
+                                        <option value="days">Tage</option>
+                                        <option value="weeks">Wochen</option>
+                                        <option value="months">Monate</option>
+                                    </select>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                    <div className="modal-actions">
-                        <button type="button" className="modal-btn btn-secondary" onClick={onClose}>Abbrechen</button>
-                        <button type="submit" className="modal-btn btn-primary">Speichern</button>
-                    </div>
-                </form>
+                        <div className="modal-actions">
+                            <button type="button" className="modal-btn btn-secondary" onClick={onClose}>Abbrechen</button>
+                            <button type="submit" className="modal-btn btn-primary">Speichern</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            {suggestionsVisible && (
+                 <FloatingSuggestions
+                    anchorEl={nameInputRef.current}
+                    suggestions={filteredSuggestions}
+                    onSelect={handleSuggestionClick}
+                    onClose={() => setSuggestionsVisible(false)}
+                    scrollContainerRef={formScrollContainerRef}
+                 />
+            )}
+            
+            {categorySuggestionsVisible && (
+                 <FloatingSuggestions
+                    anchorEl={categoryInputRef.current}
+                    suggestions={filteredCategorySuggestions}
+                    onSelect={handleCategorySuggestionClick}
+                    onClose={() => setCategorySuggestionsVisible(false)}
+                    scrollContainerRef={formScrollContainerRef}
+                 />
+            )}
+        </>
+    );
+};
+
+interface ExpiredSubscriptionModalProps {
+    sub: Subscription | null;
+    onClose: () => void;
+    onRenew: (sub: Subscription) => void;
+    onCancel: (sub: Subscription) => void;
+}
+
+const ExpiredSubscriptionModal: React.FC<ExpiredSubscriptionModalProps> = ({ sub, onClose, onRenew, onCancel }) => {
+    if (!sub) return null;
+
+    return (
+        <div className="modal-overlay">
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                <h2>Abo-Status bestätigen</h2>
+                <p className="modal-text">Das Abo <strong>"{sub.name}"</strong> ist abgelaufen. Wurde es gekündigt oder läuft es automatisch weiter?</p>
+                <div className="modal-actions">
+                     <button type="button" className="modal-btn btn-secondary" onClick={() => onCancel(sub)}>Gekündigt</button>
+                     <button type="button" className="modal-btn btn-primary" onClick={() => onRenew(sub)}>Läuft weiter</button>
+                </div>
+                 <button type="button" className="link-button" onClick={onClose}>Später entscheiden</button>
             </div>
         </div>
     );
@@ -454,7 +611,13 @@ const AddSubscriptionModal = ({ isOpen, onClose, onSave, editingSubscription, su
 
 // --- PAGE COMPONENTS ---
 
-const StartPage = ({ subscriptions, monthlyTotal, yearlyTotal }: { subscriptions: Subscription[], monthlyTotal: number, yearlyTotal: number }) => (
+interface StartPageProps {
+    subscriptions: Subscription[];
+    monthlyTotal: number;
+    yearlyTotal: number;
+}
+
+const StartPage: React.FC<StartPageProps> = ({ subscriptions, monthlyTotal, yearlyTotal }) => (
     <>
         <section className="summary-container" aria-label="Kostenübersicht">
             <SummaryCard title="Monatlich" amount={monthlyTotal} />
@@ -471,37 +634,66 @@ const StartPage = ({ subscriptions, monthlyTotal, yearlyTotal }: { subscriptions
     </>
 );
 
-const SubscriptionsListPage = ({ subscriptions, onDelete, onEdit, onAdd }: { subscriptions: Subscription[], onDelete: (id: string) => void, onEdit: (sub: Subscription) => void, onAdd: () => void }) => (
-    <section aria-label="Abonnementliste">
-        <div className="subscriptions-page-header">
-            <h2 className="subscriptions-header">Deine Abos</h2>
-            <button className="btn-add-subscription" onClick={onAdd}>Abo hinzufügen</button>
-        </div>
-        
-        {subscriptions.length > 0 ? (
-            <div className="subscription-list">
-                {subscriptions.map((sub: Subscription) => (
-                    <SubscriptionCard 
-                        key={sub.id} 
-                        sub={sub} 
-                        onDelete={onDelete}
-                        onEdit={onEdit}
-                        isExpensive={getMonthlyCost(sub) > EXPENSIVE_THRESHOLD_MONTHLY}
-                    />
-                ))}
-            </div>
-        ) : (
-            <div className="empty-state-container">
-                <span className="material-icons empty-state-icon">receipt_long</span>
-                <h3>Noch keine Abos hier</h3>
-                <p>Füge dein erstes Abo hinzu, um loszulegen.</p>
-            </div>
-        )}
-    </section>
-);
+interface SubscriptionsListPageProps {
+    subscriptions: Subscription[];
+    onDelete: (id: string) => void;
+    onEdit: (sub: Subscription) => void;
+    onAdd: () => void;
+    onConfirmationClick: (sub: Subscription) => void;
+}
 
+const SubscriptionsListPage: React.FC<SubscriptionsListPageProps> = ({ subscriptions, onDelete, onEdit, onAdd, onConfirmationClick }) => {
+    
+    const subsRequiringAction = useMemo(() => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        return subscriptions
+            .filter(sub => {
+                if (sub.isActive === false || sub.cancellationConfirmed) return false;
+                const endDate = calculateEndDate(sub);
+                return endDate && endDate < today;
+            })
+            .map(sub => sub.id);
+    }, [subscriptions]);
+    
+    return (
+        <section aria-label="Abonnementliste">
+            <div className="subscriptions-page-header">
+                <h2 className="subscriptions-header">Deine Abos</h2>
+                <button className="btn-add-subscription" onClick={onAdd}>Abo hinzufügen</button>
+            </div>
+            
+            {subscriptions.length > 0 ? (
+                <div className="subscription-list">
+                    {subscriptions.map((sub: Subscription) => (
+                        <SubscriptionCard 
+                            key={sub.id} 
+                            sub={sub} 
+                            onDelete={onDelete}
+                            onEdit={onEdit}
+                            isExpensive={getMonthlyCost(sub) > EXPENSIVE_THRESHOLD_MONTHLY}
+                            requiresConfirmation={subsRequiringAction.includes(sub.id)}
+                            onConfirmationClick={onConfirmationClick}
+                        />
+                    ))}
+                </div>
+            ) : (
+                <div className="empty-state-container">
+                    <span className="material-icons empty-state-icon">receipt_long</span>
+                    <h3>Noch keine Abos hier</h3>
+                    <p>Füge dein erstes Abo hinzu, um loszulegen.</p>
+                </div>
+            )}
+        </section>
+    );
+};
 
-const CancellationEditorPage = ({ template, onReset }: { template: string, onReset: () => void }) => {
+interface CancellationEditorPageProps {
+    template: string;
+    onReset: () => void;
+}
+
+const CancellationEditorPage: React.FC<CancellationEditorPageProps> = ({ template, onReset }) => {
     const [showOptionalFields, setShowOptionalFields] = useState(false);
     const [placeholders, setPlaceholders] = useState({
         'AnbieterName': '',
@@ -654,8 +846,14 @@ const CancellationEditorPage = ({ template, onReset }: { template: string, onRes
     );
 };
 
+interface CancellationsPageProps {
+    subscriptions: Subscription[];
+    onDelete: (id: string) => void;
+    onEdit: (sub: Subscription) => void;
+    onTemplateGenerated: (template: string) => void;
+}
 
-const CancellationsPage = ({ subscriptions, onDelete, onEdit, onTemplateGenerated }: { subscriptions: Subscription[], onDelete: (id: string) => void, onEdit: (sub: Subscription) => void, onTemplateGenerated: (template: string) => void }) => {
+const CancellationsPage: React.FC<CancellationsPageProps> = ({ subscriptions, onDelete, onEdit, onTemplateGenerated }) => {
     const [activeTab, setActiveTab] = useState<'overview' | 'create'>('overview');
     
     const upcomingCancellations = useMemo(() => {
@@ -664,6 +862,7 @@ const CancellationsPage = ({ subscriptions, onDelete, onEdit, onTemplateGenerate
         ninetyDaysFromNow.setDate(now.getDate() + 90);
 
         return subscriptions
+            .filter(sub => sub.isActive !== false)
             .map(sub => ({ sub, deadline: calculateCancellationDeadline(sub) }))
             .filter(({ deadline }) => deadline && deadline >= now && deadline <= ninetyDaysFromNow)
             .sort((a, b) => a.deadline.getTime() - b.deadline.getTime())
@@ -729,6 +928,8 @@ const CancellationsPage = ({ subscriptions, onDelete, onEdit, onTemplateGenerate
                                         onDelete={onDelete}
                                         onEdit={onEdit}
                                         isExpensive={getMonthlyCost(sub) > EXPENSIVE_THRESHOLD_MONTHLY}
+                                        requiresConfirmation={false} // Not needed here
+                                        onConfirmationClick={() => {}} // Not needed here
                                     />
                                 ))}
                             </div>
@@ -776,19 +977,25 @@ const CancellationsPage = ({ subscriptions, onDelete, onEdit, onTemplateGenerate
     );
 };
 
+interface StatisticsPageProps {
+    subscriptions: Subscription[];
+    theme: Theme;
+}
 
-const StatisticsPage = ({ subscriptions, theme }: { subscriptions: Subscription[], theme: Theme }) => {
+const StatisticsPage: React.FC<StatisticsPageProps> = ({ subscriptions, theme }) => {
     const barChartRef = useRef<HTMLCanvasElement>(null);
     const doughnutChartRef = useRef<HTMLCanvasElement>(null);
     const barChartInstance = useRef<Chart | null>(null);
     const doughnutChartInstance = useRef<Chart | null>(null);
+
+    const activeSubscriptions = useMemo(() => subscriptions.filter(sub => sub.isActive !== false), [subscriptions]);
 
     useEffect(() => {
         // Destroy previous charts
         if (barChartInstance.current) barChartInstance.current.destroy();
         if (doughnutChartInstance.current) doughnutChartInstance.current.destroy();
 
-        if (subscriptions.length === 0) return;
+        if (activeSubscriptions.length === 0) return;
 
         // --- 1. Bar Chart: Monthly Costs ---
         if (barChartRef.current) {
@@ -803,12 +1010,9 @@ const StatisticsPage = ({ subscriptions, theme }: { subscriptions: Subscription[
                 
                 monthLabels.push(date.toLocaleDateString('de-DE', { month: 'short', year: '2-digit' }));
 
-                subscriptions.forEach(sub => {
+                activeSubscriptions.forEach(sub => {
                     const subStartDate = new Date(sub.startDate);
                     if (subStartDate > monthEnd) return;
-
-                    const deadline = calculateCancellationDeadline(sub);
-                    if (deadline && deadline < monthStart) return;
 
                     monthlyCostData[11 - i] += getMonthlyCost(sub);
                 });
@@ -859,12 +1063,8 @@ const StatisticsPage = ({ subscriptions, theme }: { subscriptions: Subscription[
         // --- 2. Doughnut Chart: Category Costs ---
         if (doughnutChartRef.current) {
             const categoryCosts: { [key: string]: number } = {};
-            const now = new Date();
             
-            subscriptions.forEach(sub => {
-                const deadline = calculateCancellationDeadline(sub);
-                if(deadline && deadline < now) return; // Skip inactive subs
-
+            activeSubscriptions.forEach(sub => {
                 const category = sub.category || 'Sonstiges';
                 categoryCosts[category] = (categoryCosts[category] || 0) + getMonthlyCost(sub);
             });
@@ -911,10 +1111,10 @@ const StatisticsPage = ({ subscriptions, theme }: { subscriptions: Subscription[
             if (doughnutChartInstance.current) doughnutChartInstance.current.destroy();
         };
 
-    }, [subscriptions, theme]);
+    }, [activeSubscriptions, theme]);
 
 
-    if (subscriptions.length === 0) {
+    if (activeSubscriptions.length === 0) {
         return (
             <div className="empty-state-container">
                 <span className="material-icons empty-state-icon">monitoring</span>
@@ -942,8 +1142,12 @@ const StatisticsPage = ({ subscriptions, theme }: { subscriptions: Subscription[
     );
 };
 
+interface InfoModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+}
 
-const InfoModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => {
+const InfoModal: React.FC<InfoModalProps> = ({ isOpen, onClose }) => {
     if (!isOpen) return null;
 
     return (
@@ -961,7 +1165,12 @@ const InfoModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }
     );
 };
 
-const SettingsPage = ({ theme, onThemeToggle }: { theme: Theme, onThemeToggle: () => void }) => {
+interface SettingsPageProps {
+    theme: Theme;
+    onThemeToggle: () => void;
+}
+
+const SettingsPage: React.FC<SettingsPageProps> = ({ theme, onThemeToggle }) => {
     
     const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
     
@@ -1007,7 +1216,12 @@ const SettingsPage = ({ theme, onThemeToggle }: { theme: Theme, onThemeToggle: (
     );
 };
 
-const BottomNavBar = ({ activeView, setActiveView }: { activeView: View, setActiveView: (view: View) => void }) => {
+interface BottomNavBarProps {
+    activeView: View;
+    setActiveView: (view: View) => void;
+}
+
+const BottomNavBar: React.FC<BottomNavBarProps> = ({ activeView, setActiveView }) => {
     const navItems = [
         { id: 'start', icon: 'home', label: 'Start' },
         { id: 'abos', icon: 'article', label: 'Abos' },
@@ -1034,17 +1248,19 @@ const BottomNavBar = ({ activeView, setActiveView }: { activeView: View, setActi
     );
 };
 
-const App = () => {
+const App: React.FC = () => {
     const [subscriptions, setSubscriptions] = useState<Subscription[]>(() => {
         try {
             const savedSubs = localStorage.getItem('aboRadarSubscriptions');
             if (!savedSubs) return [];
             let parsedSubs = JSON.parse(savedSubs);
              if (Array.isArray(parsedSubs)) {
-                // Data migration for category
+                // Data migration for new fields
                 parsedSubs = parsedSubs.map(sub => ({
                     ...sub,
-                    category: sub.category || 'Sonstiges' // Default to 'Sonstiges' if not present
+                    category: sub.category || 'Sonstiges',
+                    isActive: sub.isActive ?? true,
+                    cancellationConfirmed: sub.cancellationConfirmed ?? false,
                 }));
                 // Bereinige kaputte Einträge
                 return parsedSubs.filter(sub => sub && sub.id && sub.name && typeof sub.price === 'number');
@@ -1072,6 +1288,7 @@ const App = () => {
     const [editingSubscription, setEditingSubscription] = useState<Subscription | null>(null);
     const [cancellationTemplate, setCancellationTemplate] = useState<string | null>(null);
     const [snackbar, setSnackbar] = useState({ message: '', type: 'success' as SnackbarType, visible: false });
+    const [expiredActionQueue, setExpiredActionQueue] = useState<Subscription[]>([]);
 
      const showSnackbar = (message: string, type: SnackbarType = 'success') => {
         setSnackbar({ message, type, visible: true });
@@ -1092,14 +1309,27 @@ const App = () => {
         document.body.setAttribute('data-theme', theme);
         localStorage.setItem('aboRadarTheme', theme);
     }, [theme]);
+    
+    useEffect(() => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const expiredSubsNeedingAction = subscriptions.filter(sub => {
+            if (sub.isActive === false || sub.cancellationConfirmed) {
+                return false;
+            }
+            const endDate = calculateEndDate(sub);
+            return endDate && endDate < today;
+        });
+
+        if (expiredSubsNeedingAction.length > 0) {
+            setExpiredActionQueue(expiredSubsNeedingAction);
+        }
+    }, []);
 
 
     const { monthlyTotal, yearlyTotal } = useMemo(() => {
-        const now = new Date();
-        const activeSubs = subscriptions.filter(sub => {
-            const deadline = calculateCancellationDeadline(sub);
-            return !deadline || deadline >= now;
-        });
+        const activeSubs = subscriptions.filter(sub => sub.isActive !== false);
         const total = activeSubs.reduce((sum, sub) => sum + getMonthlyCost(sub), 0);
         return { monthlyTotal: total, yearlyTotal: total * 12 };
     }, [subscriptions]);
@@ -1132,15 +1362,6 @@ const App = () => {
         }
     };
     
-    const handleDeleteAllData = () => {
-        if (window.confirm('Alle gespeicherten Abos und Kündigungen werden unwiderruflich gelöscht. Bist du sicher?')) {
-            setSubscriptions([]);
-            setCancellationTemplate(null);
-            showSnackbar('Alle Daten wurden gelöscht.');
-            setActiveView('start');
-        }
-    };
-
     const handleOpenModal = (sub: Subscription | null) => {
         setEditingSubscription(sub);
         setIsModalOpen(true);
@@ -1160,12 +1381,42 @@ const App = () => {
         setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
     };
 
+    const updateSubscription = (subToUpdate: Subscription, updates: Partial<Subscription>) => {
+        const updatedSubs = subscriptions.map(s => 
+            s.id === subToUpdate.id ? { ...s, ...updates } : s
+        );
+        setSubscriptions(updatedSubs);
+        setExpiredActionQueue(q => q.slice(1));
+    };
+
+    const handleRenewSubscription = (sub: Subscription) => {
+        const endDate = calculateEndDate(sub);
+        if (endDate) {
+            updateSubscription(sub, { 
+                startDate: endDate.toISOString().split('T')[0],
+                cancellationConfirmed: false, // Reset for the new period
+            });
+            showSnackbar(`"${sub.name}" wurde verlängert.`);
+        }
+    };
+
+    const handleConfirmCancellation = (sub: Subscription) => {
+        updateSubscription(sub, { isActive: false, cancellationConfirmed: true });
+        showSnackbar(`"${sub.name}" wurde als gekündigt markiert.`);
+    };
+    
+     const handleActionRequiredClick = (sub: Subscription) => {
+        if (!expiredActionQueue.some(s => s.id === sub.id)) {
+            setExpiredActionQueue(prev => [sub, ...prev]);
+        }
+    };
+
     const renderContent = () => {
         switch (activeView) {
             case 'start':
                 return <StartPage subscriptions={subscriptions} monthlyTotal={monthlyTotal} yearlyTotal={yearlyTotal} />;
             case 'abos':
-                return <SubscriptionsListPage subscriptions={subscriptions} onDelete={handleDeleteSubscription} onEdit={handleOpenModal} onAdd={() => handleOpenModal(null)} />;
+                return <SubscriptionsListPage subscriptions={subscriptions} onDelete={handleDeleteSubscription} onEdit={handleOpenModal} onAdd={() => handleOpenModal(null)} onConfirmationClick={handleActionRequiredClick} />;
             case 'auswertung':
                 return <StatisticsPage subscriptions={subscriptions} theme={theme} />;
             case 'kuendigungen':
@@ -1214,6 +1465,13 @@ const App = () => {
                 onSave={handleSaveSubscription}
                 editingSubscription={editingSubscription}
                 subscriptions={subscriptions}
+            />
+            
+            <ExpiredSubscriptionModal
+                sub={expiredActionQueue[0]}
+                onClose={() => setExpiredActionQueue(q => q.slice(1))}
+                onRenew={handleRenewSubscription}
+                onCancel={handleConfirmCancellation}
             />
 
             <Snackbar
